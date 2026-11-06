@@ -1,0 +1,61 @@
+name: Construire l'APK Android
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Préparer la clé de signature (secrets GitHub, optionnel)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SASCI_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/sasci.jks"
+            echo "SASCI_KEYSTORE_PATH=$RUNNER_TEMP/sasci.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Aucune clé de signature configurée : APK signé avec une clé de test. Voir README (section Signature)."
+          fi
+
+      - name: Compiler l'APK
+        env:
+          SASCI_SCRIPT_URL: ${{ vars.SASCI_SCRIPT_URL }}
+          SASCI_API_KEY: ${{ secrets.SASCI_API_KEY }}
+          SASCI_KEYSTORE_PASSWORD: ${{ secrets.SASCI_KEYSTORE_PASSWORD }}
+          SASCI_KEY_ALIAS: ${{ secrets.SASCI_KEY_ALIAS }}
+          SASCI_KEY_PASSWORD: ${{ secrets.SASCI_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk SASCI-Livraisons.apk
+
+      - name: Mettre l'APK à disposition (onglet Actions)
+        uses: actions/upload-artifact@v4
+        with:
+          name: SASCI-Livraisons-apk
+          path: SASCI-Livraisons.apk
+
+      - name: Publier dans « Releases » (branche principale uniquement)
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete derniere-version --yes --cleanup-tag || true
+          gh release create derniere-version SASCI-Livraisons.apk \
+            --target "$GITHUB_SHA" \
+            --title "SAS CI Livraisons – version 1.0.${{ github.run_number }}" \
+            --notes "APK à installer sur les téléphones Android des chauffeurs : télécharger SASCI-Livraisons.apk ci-dessous."
