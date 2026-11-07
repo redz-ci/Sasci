@@ -36,9 +36,11 @@ class LoginActivity : BaseActivity() {
         url = zoneServeur.champ("https://script.google.com/macros/s/…/exec", valeur = Prefs.scriptUrl(this))
         zoneServeur.texte("Clé API", 14f)
         cle = zoneServeur.champ("Clé API", valeur = Prefs.apiKey(this))
-        zoneServeur.bouton("Enregistrer et tester", 0xFF455A64.toInt()) {
-            Prefs.setServeur(this, url.text.toString(), cle.text.toString())
-            chargerChauffeurs()
+        zoneServeur.bouton("Enregistrer et tester la connexion", 0xFF455A64.toInt()) {
+            Prefs.setServeur(this, url.text.toString().replace(Regex("\\s"), ""), cle.text.toString().trim())
+            url.setText(Prefs.scriptUrl(this))
+            cle.setText(Prefs.apiKey(this))
+            testerConnexion()
         }
         zoneServeur.visibility = if (Prefs.scriptUrl(this).isBlank()) View.VISIBLE else View.GONE
         col.addView(zoneServeur, lp(haut = 8))
@@ -47,8 +49,43 @@ class LoginActivity : BaseActivity() {
         col.addView(zoneChauffeurs, lp(haut = 8))
 
         col.bouton("Recharger la liste des chauffeurs", 0xFF607D8B.toInt(), haut = 24) { chargerChauffeurs() }
+        col.bouton("🔍  Tester la connexion", 0xFF607D8B.toInt()) { testerConnexion() }
         col.bouton("⚙  Paramètres du serveur", 0xFF9E9E9E.toInt()) {
             zoneServeur.visibility = if (zoneServeur.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        }
+    }
+
+    /** Vérifie chaque maillon de la connexion et indique précisément celui qui bloque. */
+    private fun testerConnexion() {
+        val dlg = attente("Test de la connexion…")
+        bg.execute {
+            val r = StringBuilder()
+            var ok = false
+            try {
+                Api.verifierUrl(Prefs.scriptUrl(this))
+                r.append("✅ 1. Format de l'adresse correct\n")
+                val service = Api.get(this, emptyMap())
+                if (service.optString("service").isBlank()) throw java.io.IOException("Le script répond mais ce n'est pas le code SAS CI.")
+                r.append("✅ 2. Script Google joignable et public\n")
+                val ping = Api.get(this, mapOf("action" to "ping"))
+                if (!ping.optBoolean("ok")) throw java.io.IOException(ping.optString("error") +
+                    " : recopiez la clé depuis l'onglet « Paramètres » du Google Sheets (ligne « Clé API »).")
+                r.append("✅ 3. Clé API acceptée\n")
+                val ch = Api.get(this, mapOf("action" to "chauffeurs"))
+                if (!ch.optBoolean("ok")) throw java.io.IOException(ch.optString("error"))
+                val n = ch.optJSONArray("chauffeurs")?.length() ?: 0
+                if (n == 0) throw java.io.IOException("Aucun chauffeur actif : remplissez l'onglet « Chauffeurs » (Nom, PIN, Camion, Actif = Oui).")
+                r.append("✅ 4. $n chauffeur(s) actif(s) trouvé(s)\n")
+                ok = true
+            } catch (e: Exception) {
+                r.append("\n❌ ").append(e.message ?: e.toString())
+            }
+            runOnUiThread {
+                dlg.dismiss()
+                alerte(if (ok) "Connexion réussie" else "Connexion impossible", r.toString()) {
+                    if (ok) chargerChauffeurs()
+                }
+            }
         }
     }
 
@@ -71,7 +108,7 @@ class LoginActivity : BaseActivity() {
                     afficherChoix()
                 }.onFailure {
                     alerte("Connexion impossible", (it.message ?: "Erreur réseau") +
-                        "\n\nVérifiez la connexion internet et les paramètres du serveur.")
+                        "\n\nVérifiez la connexion internet, puis touchez « ⚙ Paramètres du serveur » > « Enregistrer et tester la connexion ».")
                 }
             }
         }

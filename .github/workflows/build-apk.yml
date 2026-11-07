@@ -33,12 +33,15 @@ jobs:
 
       - name: Compiler l'APK
         env:
-          SASCI_SCRIPT_URL: ${{ vars.SASCI_SCRIPT_URL }}
-          SASCI_API_KEY: ${{ secrets.SASCI_API_KEY }}
+          SASCI_SCRIPT_URL: ${{ vars.SASCI_SCRIPT_URL || secrets.SASCI_SCRIPT_URL }}
+          SASCI_API_KEY: ${{ secrets.SASCI_API_KEY || vars.SASCI_API_KEY }}
           SASCI_KEYSTORE_PASSWORD: ${{ secrets.SASCI_KEYSTORE_PASSWORD }}
           SASCI_KEY_ALIAS: ${{ secrets.SASCI_KEY_ALIAS }}
           SASCI_KEY_PASSWORD: ${{ secrets.SASCI_KEY_PASSWORD }}
         run: |
+          if [ -n "$SASCI_SCRIPT_URL" ]; then echo "Adresse du serveur intégrée à l'APK : $SASCI_SCRIPT_URL"; else echo "::warning::SASCI_SCRIPT_URL non défini : l'adresse devra être saisie dans l'application."; fi
+          if [ -n "$SASCI_API_KEY" ]; then echo "Clé API intégrée à l'APK (${#SASCI_API_KEY} caractères)."; else echo "::warning::SASCI_API_KEY non défini : la clé devra être saisie dans l'application."; fi
+          case "$SASCI_SCRIPT_URL" in *"/dev") echo "::error::SASCI_SCRIPT_URL se termine par /dev : utilisez l'URL /exec du déploiement."; exit 1;; esac
           chmod +x gradlew
           ./gradlew --no-daemon assembleRelease
           cp app/build/outputs/apk/release/app-release.apk SASCI-Livraisons.apk

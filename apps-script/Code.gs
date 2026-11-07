@@ -98,7 +98,7 @@ function installer() {
   // Paramètres par défaut
   const params = ss.getSheetByName(ONGLET.PARAMS);
   const defauts = [
-    [P.CLE, Utilities.getUuid().replace(/-/g, '').slice(0, 16), 'Clé à saisir dans l\'application (ou à intégrer à l\'APK).'],
+    [P.CLE, 'sasci-' + Utilities.getUuid().replace(/-/g, '').slice(0, 12), 'Clé à saisir dans l\'application (ou à intégrer à l\'APK).'],
     [P.EMAILS, Session.getEffectiveUser().getEmail(), 'Destinataires des alertes et du rapport quotidien (séparés par des virgules).'],
     [P.TEL, '', 'Numéro proposé au chauffeur pour appeler la logistique après un incident grave.'],
     [P.HEURE, 19, 'Heure d\'envoi du rapport quotidien (0 à 23). Relancer « Installer / réparer » après modification.'],
@@ -339,8 +339,19 @@ function json_(o) {
 }
 
 function verifierCle_(cle) {
-  const attendue = String(param_(P.CLE) || '');
-  if (attendue && String(cle || '') !== attendue) throw new Error('Clé API invalide');
+  const attendue = cleApi_();
+  if (attendue && String(cle || '').trim() !== attendue) {
+    throw new Error('Clé API invalide');
+  }
+}
+
+/** Clé API telle qu'affichée dans l'onglet Paramètres (texte exact, sans espaces). */
+function cleApi_() {
+  const sh = classeur_().getSheetByName(ONGLET.PARAMS);
+  if (!sh || sh.getLastRow() < 1) return '';
+  const v = sh.getRange(1, 1, sh.getLastRow(), 2).getDisplayValues();
+  for (let i = 0; i < v.length; i++) if (String(v[i][0]).trim() === P.CLE) return String(v[i][1]).trim();
+  return '';
 }
 
 function chauffeurs_() {
@@ -359,8 +370,14 @@ function authentifier_(nom, pin) {
   const n = String(nom || '').trim().toLowerCase();
   const c = chauffeurs_().filter(function (x) { return x.nom.toLowerCase() === n; })[0];
   if (!c) throw new Error('Chauffeur inconnu ou inactif : ' + nom);
-  if (c.pin && c.pin !== String(pin || '').trim()) throw new Error('Code PIN incorrect');
+  if (c.pin && !memePin_(c.pin, pin)) throw new Error('Code PIN incorrect');
   return c;
+}
+
+function memePin_(attendu, saisi) {
+  const a = String(attendu || '').trim(), b = String(saisi || '').trim();
+  if (a === b) return true;
+  return /^\d+$/.test(a) && /^\d+$/.test(b) && Number(a) === Number(b);
 }
 
 /** Tournées non clôturées du chauffeur (des 3 derniers jours et à venir) avec leurs BL. */
@@ -739,15 +756,24 @@ function alerter_(sujet, html) {
 // ---------------------------------------------------------------------------
 
 function afficherConnexion() {
-  const url = ScriptApp.getService().getUrl() || '(pas encore déployé : Déployer > Nouveau déploiement > Application Web)';
+  let url = '';
+  try { url = ScriptApp.getService().getUrl() || ''; } catch (e) { url = ''; }
+  const urlOk = /\/exec$/.test(url);
+  const blocUrl = urlOk
+    ? '<textarea style="width:100%;height:60px" readonly>' + url + '</textarea>'
+    : '<div style="background:#FFF3E0;padding:8px;border-radius:6px">L\'adresse <b>/exec</b> ne peut pas être lue automatiquement ici.<br>' +
+      'Dans l\'éditeur Apps Script : <b>Déployer &gt; Gérer les déploiements</b>, sélectionnez le déploiement « Application Web » ' +
+      'et copiez l\'<b>URL qui se termine par /exec</b>.<br><span style="color:#C62828">N\'utilisez jamais l\'adresse qui se termine par /dev ' +
+      '(elle ne fonctionne pas sur les téléphones).</span></div>';
   const html = HtmlService.createHtmlOutput(
     '<div style="font-family:Arial;font-size:14px">' +
-    '<p><b>URL du serveur :</b><br><textarea style="width:100%;height:60px" readonly>' + url + '</textarea></p>' +
-    '<p><b>Clé API :</b><br><input style="width:100%" readonly value="' + param_(P.CLE) + '"></p>' +
-    '<p>À saisir dans l\'application (Paramètres du serveur) ou à intégrer à l\'APK ' +
-    '(variables SASCI_SCRIPT_URL et SASCI_API_KEY, voir README).</p>' +
-    '<p style="color:#C62828">Après chaque modification du script : Déployer > Gérer les déploiements > Modifier > Nouvelle version.</p></div>'
-  ).setWidth(520).setHeight(330);
+    '<p><b>URL du serveur :</b><br>' + blocUrl + '</p>' +
+    '<p><b>Clé API :</b><br><input style="width:100%" readonly value="' + echapper_(cleApi_()) + '"></p>' +
+    '<p><b>Vérification :</b> ouvrez l\'URL /exec dans un navigateur <i>en navigation privée</i> : vous devez voir ' +
+    '<code>{"ok":true,"service":"SAS CI – Suivi des livraisons"}</code>. Si Google demande de se connecter, ' +
+    'le déploiement n\'est pas en « Qui a accès : Tout le monde ».</p>' +
+    '<p style="color:#C62828">Après chaque modification du script : Déployer &gt; Gérer les déploiements &gt; Modifier &gt; Version : Nouvelle version &gt; Déployer.</p></div>'
+  ).setWidth(560).setHeight(420);
   SpreadsheetApp.getUi().showModalDialog(html, 'Connexion de l\'application');
 }
 

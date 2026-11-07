@@ -72,8 +72,10 @@ Pour un premier essai, **SAS CI > Créer des données de test** crée le chauffe
 À chaque envoi de code sur GitHub, l'APK est compilé automatiquement.
 
 1. *(Recommandé)* Pour que l'URL et la clé soient déjà intégrées à l'application, le chauffeur n'ayant alors rien à saisir, ouvrez sur GitHub **Settings > Secrets and variables > Actions** :
-   - onglet **Variables** : créez `SASCI_SCRIPT_URL` avec l'URL `/exec` ;
-   - onglet **Secrets** : créez `SASCI_API_KEY` avec la clé API.
+   - `SASCI_SCRIPT_URL` : l'URL qui se termine par **`/exec`** (jamais `/dev`) ;
+   - `SASCI_API_KEY` : la clé API.
+   Vous pouvez les créer dans l'onglet *Variables* ou dans l'onglet *Secrets* : les deux fonctionnent.
+   L'adresse et la clé sont lues **au moment de la compilation**. Après les avoir modifiées, relancez la compilation et réinstallez l'APK.
 2. Ouvrez l'onglet **Actions > Construire l'APK Android > Run workflow**, ou envoyez simplement un commit.
 3. Quand la compilation est terminée (environ 5 minutes) :
    - sur la page de l'exécution, téléchargez l'artefact **SASCI-Livraisons-apk**, un fichier zip qui contient l'APK ;
@@ -141,7 +143,30 @@ Les quatre premiers sont mis à jour par l'application, les deux derniers par la
 
 ---
 
-## 6. Limites connues de cette première version
+## 6. Dépannage : « l'application ne se connecte pas »
+
+Dans l'application, ouvrez **⚙ Paramètres du serveur** puis touchez **Enregistrer et tester la connexion**. Le test vérifie chaque point dans l'ordre et indique celui qui bloque :
+
+| Message | Cause | Solution |
+|---|---|---|
+| *L'adresse se termine par /dev* | L'adresse copiée est l'adresse de **test** | Apps Script > **Déployer > Gérer les déploiements** et copier l'URL **/exec** |
+| *Google demande une connexion* | Le déploiement n'est pas public | Gérer les déploiements > Modifier (crayon) > *Exécuter en tant que : **Moi*** et *Qui a accès : **Tout le monde***, puis Déployer |
+| *fonction doGet introuvable* | Le déploiement date d'avant le collage du code | Enregistrer Code.gs, puis Gérer les déploiements > Modifier > Version : **Nouvelle version** > Déployer |
+| *Clé API invalide* | La clé saisie ou intégrée à l'APK ne correspond pas | Recopier la valeur de la ligne « Clé API » de l'onglet **Paramètres** |
+| *Aucun chauffeur actif* | Onglet Chauffeurs vide, ou Actif = Non | Ajouter les chauffeurs, avec Actif = `Oui` |
+| *Onglet manquant* | La fonction `installer` n'a pas été lancée | Menu **SAS CI > Installer / réparer** |
+
+**Test depuis un navigateur.** Ouvrez l'URL `/exec` dans une fenêtre de **navigation privée**. Vous devez voir :
+`{"ok":true,"service":"SAS CI – Suivi des livraisons"}`. Si Google affiche une page de connexion, le déploiement n'est pas en accès « Tout le monde ».
+Ajoutez ensuite `?action=ping&key=VOTRE_CLE` à la fin de l'URL : la réponse doit être `{"ok":true}`.
+
+**Après une mise à jour de `Code.gs`**, il faut toujours créer une **nouvelle version** du déploiement : Gérer les déploiements > Modifier > Nouvelle version. L'URL reste la même.
+
+**Comptes Google Workspace (entreprise).** Si l'option « Tout le monde » n'apparaît pas, l'administrateur du domaine a bloqué le partage externe des scripts. Dans ce cas, utilisez un compte Gmail pour héberger le Google Sheets, ou demandez à l'administrateur d'autoriser cette option.
+
+---
+
+## 7. Limites connues de cette première version
 
 - Les envois en attente partent quand l'application est ouverte, puis toutes les minutes tant qu'elle reste ouverte. Ils ne partent pas quand l'application est fermée.
 - Le Web App Google est accessible avec la clé API et le PIN du chauffeur. Gardez la clé interne et donnez un PIN à chaque chauffeur.
