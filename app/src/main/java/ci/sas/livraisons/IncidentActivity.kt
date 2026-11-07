@@ -36,7 +36,8 @@ class IncidentActivity : BaseActivity() {
 
         col.titre("Catégorie")
         lateinit var listeTypes: Spinner
-        val cat = col.choix(categories, coche = if (blInitial != null) 0 else -1) { i ->
+        // Catégorie cochée par défaut, cohérente avec la liste des types affichée.
+        val cat = col.choix(categories, coche = 0) { i ->
             if (i >= 0) {
                 listeTypes.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types[i])
             }
@@ -62,7 +63,10 @@ class IncidentActivity : BaseActivity() {
         col.zonePhotos("Photos (recommandées)", max = 5)
 
         col.bouton("📨  Envoyer la déclaration", 0xFFC62828.toInt(), haut = 24) {
-            val c = cat.indexCoche()
+            val typeChoisi = listeTypes.selectedItem?.toString() ?: ""
+            // Si aucune catégorie n'est cochée, on la déduit du type choisi.
+            val c = cat.indexCoche().takeIf { it >= 0 }
+                ?: types.indexOfFirst { typeChoisi in it && typeChoisi != "Autre" }
             val n = niveau.indexCoche()
             when {
                 c < 0 -> { alerte("Catégorie manquante", "Choisissez la catégorie de l'incident."); return@bouton }
@@ -72,7 +76,7 @@ class IncidentActivity : BaseActivity() {
             val b = listeBl.selectedItemPosition.let { if (it > 0) tous[it - 1] else null }
             val data = JSONObject()
                 .put("categorie", categories[c])
-                .put("type", listeTypes.selectedItem?.toString() ?: "")
+                .put("type", typeChoisi)
                 .put("niveau", niveaux[n])
                 .put("bl", b?.numero ?: "")
                 .put("tourneeId", b?.tourneeId ?: tourneeInitiale)
