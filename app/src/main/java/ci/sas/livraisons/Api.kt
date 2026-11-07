@@ -10,6 +10,19 @@ import java.net.URLEncoder
 /** Communication avec le Web App Google Apps Script (voir dossier apps-script/). */
 object Api {
 
+    private const val MSG_CONNEXION =
+        "Google demande une connexion : le script n'est pas accessible publiquement.\n\n" +
+            "Dans Apps Script : Déployer > Gérer les déploiements > crayon (Modifier) :\n" +
+            "1. « Exécuter en tant que » : Moi (à faire en premier, sinon « Tout le monde » n'apparaît pas)\n" +
+            "2. « Qui a accès » : Tout le monde\n" +
+            "3. Version : Nouvelle version > Déployer\n" +
+            "4. Copiez l'URL /exec de ce déploiement."
+
+    private const val MSG_404 =
+        "Adresse du script introuvable (HTTP 404).\n\n" +
+            "Copiez l'URL directement depuis Apps Script : Déployer > Gérer les déploiements > " +
+            "déploiement actif > URL de l'application Web (/exec)."
+
     fun get(ctx: Context, params: Map<String, String>): JSONObject {
         val base = verifierUrl(Prefs.scriptUrl(ctx))
         val all = params + mapOf("key" to Prefs.apiKey(ctx))
@@ -62,11 +75,9 @@ object Api {
                 "Le déploiement ne contient pas le code SAS CI (fonction doGet introuvable).\n" +
                     "Vérifiez que Code.gs est bien collé et enregistré, puis Déployer > Gérer les déploiements > Modifier > Version : Nouvelle version > Déployer."
             "unable to open the file" in t || "impossible d'ouvrir le fichier" in t || "not found" in t || "introuvable" in t ->
-                "Adresse du script introuvable : vérifiez l'URL /exec (copiez-la depuis Déployer > Gérer les déploiements)."
+                MSG_404
             "accounts.google.com" in t || "servicelogin" in t ->
-                "Google demande une connexion : le script n'est pas accessible publiquement.\n" +
-                    "Dans Apps Script : Déployer > Gérer les déploiements > Modifier (crayon) > " +
-                    "« Exécuter en tant que : Moi » et « Qui a accès : Tout le monde », puis Déployer."
+                MSG_CONNEXION
             else -> "Réponse inattendue du serveur : " + text.replace(Regex("<[^>]*>"), " ")
                 .replace(Regex("\\s+"), " ").trim().take(200)
         }
@@ -100,9 +111,7 @@ object Api {
                     url = URL(url, loc)
                     if (url.host.contains("accounts.google")) {
                         throw IOException(
-                            "Google demande une connexion : le script n'est pas accessible publiquement.\n" +
-                                "Dans Apps Script : Déployer > Gérer les déploiements > Modifier (crayon) > " +
-                                "« Exécuter en tant que : Moi » et « Qui a accès : Tout le monde », puis Déployer."
+                            MSG_CONNEXION
                         )
                     }
                     body = null
@@ -116,9 +125,9 @@ object Api {
                     throw IOException(
                         when (code) {
                             401, 403 -> diagnostic(t).let {
-                                if (it.startsWith("Réponse inattendue")) "Accès refusé par Google (HTTP $code) : le déploiement doit être « Qui a accès : Tout le monde »." else it
+                                if (it.startsWith("Réponse inattendue")) MSG_CONNEXION else it
                             }
-                            404 -> "Adresse du script introuvable (HTTP 404) : vérifiez l'URL /exec."
+                            404 -> MSG_404
                             else -> "Erreur du serveur Google (HTTP $code). " + diagnostic(t)
                         }
                     )

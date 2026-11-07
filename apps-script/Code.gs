@@ -756,24 +756,20 @@ function alerter_(sujet, html) {
 // ---------------------------------------------------------------------------
 
 function afficherConnexion() {
-  let url = '';
-  try { url = ScriptApp.getService().getUrl() || ''; } catch (e) { url = ''; }
-  const urlOk = /\/exec$/.test(url);
-  const blocUrl = urlOk
-    ? '<textarea style="width:100%;height:60px" readonly>' + url + '</textarea>'
-    : '<div style="background:#FFF3E0;padding:8px;border-radius:6px">L\'adresse <b>/exec</b> ne peut pas être lue automatiquement ici.<br>' +
-      'Dans l\'éditeur Apps Script : <b>Déployer &gt; Gérer les déploiements</b>, sélectionnez le déploiement « Application Web » ' +
-      'et copiez l\'<b>URL qui se termine par /exec</b>.<br><span style="color:#C62828">N\'utilisez jamais l\'adresse qui se termine par /dev ' +
-      '(elle ne fonctionne pas sur les téléphones).</span></div>';
+  // L'URL n'est volontairement PAS lue automatiquement : ScriptApp.getService().getUrl()
+  // peut renvoyer l'adresse d'un autre déploiement (erreur 404 sur le téléphone).
   const html = HtmlService.createHtmlOutput(
     '<div style="font-family:Arial;font-size:14px">' +
-    '<p><b>URL du serveur :</b><br>' + blocUrl + '</p>' +
     '<p><b>Clé API :</b><br><input style="width:100%" readonly value="' + echapper_(cleApi_()) + '"></p>' +
-    '<p><b>Vérification :</b> ouvrez l\'URL /exec dans un navigateur <i>en navigation privée</i> : vous devez voir ' +
-    '<code>{"ok":true,"service":"SAS CI – Suivi des livraisons"}</code>. Si Google demande de se connecter, ' +
-    'le déploiement n\'est pas en « Qui a accès : Tout le monde ».</p>' +
-    '<p style="color:#C62828">Après chaque modification du script : Déployer &gt; Gérer les déploiements &gt; Modifier &gt; Version : Nouvelle version &gt; Déployer.</p></div>'
-  ).setWidth(560).setHeight(420);
+    '<p><b>URL du serveur</b> : à copier dans l\'éditeur Apps Script :</p><ol>' +
+    '<li><b>Déployer &gt; Gérer les déploiements</b>, puis cliquez sur le crayon (Modifier).</li>' +
+    '<li><b>Exécuter en tant que : Moi</b>. Ce réglage doit être fait <i>en premier</i>, sinon l\'option « Tout le monde » n\'apparaît pas.</li>' +
+    '<li><b>Qui a accès : Tout le monde</b>.</li>' +
+    '<li><b>Version : Nouvelle version</b>, puis <b>Déployer</b>.</li>' +
+    '<li>Copiez l\'URL de ce déploiement (elle se termine par <b>/exec</b>).</li></ol>' +
+    '<p><b>Vérification :</b> ouvrez cette URL dans un navigateur <i>en navigation privée</i>. Vous devez voir ' +
+    '<code>{"ok":true,"service":"SAS CI – Suivi des livraisons"}</code>.</p></div>'
+  ).setWidth(560).setHeight(430);
   SpreadsheetApp.getUi().showModalDialog(html, 'Connexion de l\'application');
 }
 

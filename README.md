@@ -42,11 +42,11 @@ Application Android pour les chauffeurs de SAS CI, reliée à un fichier **Googl
 4. Dans la liste des fonctions, choisissez **`installer`** et cliquez sur **Exécuter**. Acceptez les autorisations demandées (Sheets, Drive, envoi d'e-mails).
    Les onglets, le tableau de bord, le dossier Drive des photos et l'envoi du rapport du soir sont alors créés.
 5. Cliquez sur **Déployer > Nouveau déploiement**, type **Application Web** :
-   - *Exécuter en tant que* : **Moi** ;
+   - *Exécuter en tant que* : **Moi**. Réglez-le **en premier** : avec « Utilisateur accédant à l'application Web », l'option « Tout le monde » n'est pas proposée ;
    - *Qui a accès* : **Tout le monde**.
-   Copiez l'URL obtenue, qui se termine par `/exec`.
+   Copiez l'URL de ce déploiement, qui se termine par `/exec`. Prenez-la toujours dans **Gérer les déploiements**.
 6. Revenez dans le Google Sheets et rechargez la page. Un menu **SAS CI** apparaît.
-   - **SAS CI > Paramètres de connexion pour l'application** affiche l'URL et la **clé API**.
+   - **SAS CI > Paramètres de connexion pour l'application** affiche la **clé API**. L'URL se copie dans *Gérer les déploiements*.
    - L'onglet **Paramètres** permet de régler les e-mails de la logistique, le téléphone, l'heure du rapport et les seuils d'anomalie.
 7. Dans l'onglet **Chauffeurs**, ajoutez une ligne par chauffeur : Nom, Code PIN (facultatif), Camion attitré, Téléphone, Actif = `Oui`.
 
@@ -150,7 +150,8 @@ Dans l'application, ouvrez **⚙ Paramètres du serveur** puis touchez **Enregis
 | Message | Cause | Solution |
 |---|---|---|
 | *L'adresse se termine par /dev* | L'adresse copiée est l'adresse de **test** | Apps Script > **Déployer > Gérer les déploiements** et copier l'URL **/exec** |
-| *Google demande une connexion* | Le déploiement n'est pas public | Gérer les déploiements > Modifier (crayon) > *Exécuter en tant que : **Moi*** et *Qui a accès : **Tout le monde***, puis Déployer |
+| *Google demande une connexion* | Le déploiement n'est pas public | Gérer les déploiements > crayon > d'abord *Exécuter en tant que : **Moi*** (sans ce réglage, « Tout le monde » n'est pas proposé), puis *Qui a accès : **Tout le monde***, Nouvelle version > Déployer |
+| *HTTP 404* | L'URL n'est pas celle du déploiement actif | Copier l'URL `/exec` depuis **Gérer les déploiements** |
 | *fonction doGet introuvable* | Le déploiement date d'avant le collage du code | Enregistrer Code.gs, puis Gérer les déploiements > Modifier > Version : **Nouvelle version** > Déployer |
 | *Clé API invalide* | La clé saisie ou intégrée à l'APK ne correspond pas | Recopier la valeur de la ligne « Clé API » de l'onglet **Paramètres** |
 | *Aucun chauffeur actif* | Onglet Chauffeurs vide, ou Actif = Non | Ajouter les chauffeurs, avec Actif = `Oui` |
