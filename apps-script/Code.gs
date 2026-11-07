@@ -67,6 +67,7 @@ function onOpen() {
     .addItem('Importer les tournées (onglet « Import Excel »)', 'importerTournees')
     .addItem('Envoyer le rapport du jour maintenant', 'rapportQuotidien')
     .addItem('Mettre à jour les compteurs des tournées', 'recalculerTournees')
+    .addItem('Réparer les liens GPS (Google Maps)', 'reparerLiensGps')
     .addSeparator()
     .addItem('Paramètres de connexion pour l\'application', 'afficherConnexion')
     .addItem('Créer des données de test', 'creerDonneesTest')
@@ -570,7 +571,7 @@ function actionIncident_(b, c) {
       '<br><b>Véhicule :</b> ' + echapper_(b.vehicule) + '<br><b>BL :</b> ' + echapper_(b.bl || '—') +
       '<br><b>Heure :</b> ' + Utilities.formatDate(quand, tz, 'dd/MM/yyyy HH:mm') + '</p>' +
       '<p><b>Description :</b><br>' + echapper_(b.description) + '</p>' +
-      (b.gps ? '<p><a href="https://maps.google.com/?q=' + b.gps.lat + ',' + b.gps.lng + '">Voir la position sur la carte</a></p>' : '') +
+      (b.gps ? '<p><a href="' + urlMaps_(b.gps.lat, b.gps.lng) + '">Voir la position sur Google Maps</a></p>' : '') +
       (ligne['Photos'] ? '<p>Photos :<br>' + ligne['Photos'].split('\n').map(function (u) { return '<a href="' + u + '">' + u + '</a>'; }).join('<br>') + '</p>' : ''));
   }
   return id;
@@ -611,6 +612,35 @@ function majCompteursTournee_(tourneeId) {
   const t = table_(ONGLET.TOURNEES);
   const i = trouver_(t, 'ID Tournée', tourneeId);
   if (i >= 0) ecrire_(t, i, { 'Nb BL': total, 'Nb livrés': livres });
+}
+
+/** Convertit les anciens liens =HYPERLINK(...) en liens Google Maps cliquables. */
+function reparerLiensGps() {
+  const cibles = {};
+  cibles[ONGLET.TOURNEES] = ['Départ GPS', 'Retour GPS'];
+  cibles[ONGLET.BL] = ['Arrivée GPS', 'Fin déchargement GPS'];
+  cibles[ONGLET.INCIDENTS] = ['GPS'];
+  let n = 0;
+  Object.keys(cibles).forEach(function (nom) {
+    const sh = classeur_().getSheetByName(nom);
+    if (!sh || sh.getLastRow() < 2) return;
+    cibles[nom].forEach(function (col) {
+      const c = indexColonne_(sh, col);
+      if (c < 0) return;
+      const r = sh.getRange(2, c + 1, sh.getLastRow() - 1, 1);
+      const formules = r.getFormulas(), valeurs = r.getDisplayValues();
+      for (let i = 0; i < formules.length; i++) {
+        const source = valeurs[i][0] || formules[i][0];
+        const m = String(source).match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)(?:\s*\(±(\d+) m\))?/);
+        if (!m) continue;
+        const g = { lat: m[1], lng: m[2] };
+        if (m[3] !== undefined) g.acc = m[3];
+        ecrireLien_(sh.getRange(i + 2, c + 1), lienGps_(g));
+        n++;
+      }
+    });
+  });
+  try { SpreadsheetApp.getUi().alert('Liens GPS', n + ' lien(s) mis à jour.', SpreadsheetApp.getUi().ButtonSet.OK); } catch (e) { Logger.log(n); }
 }
 
 function recalculerTournees() {
@@ -833,8 +863,7 @@ function ecrire_(t, i, obj) {
     if (c === undefined) throw new Error('Colonne manquante « ' + k + ' » (lancer SAS CI > Installer / réparer)');
     const cell = t.feuille.getRange(i + 2, c + 1);
     const v = obj[k];
-    if (typeof v === 'string' && v.indexOf('=HYPERLINK(') === 0) cell.setFormula(v); else cell.setValue(v);
-    t.lignes[i][c] = v;
+    if (estLien_(v)) { ecrireLien_(cell, v); t.lignes[i][c] = v.texte; } else { cell.setValue(v); t.lignes[i][c] = v; }
   });
 }
 
@@ -843,11 +872,17 @@ function ajouterLigne_(t, obj) { ajouterLignes_(t, [obj]); }
 function ajouterLignes_(t, objs) {
   if (!objs.length) return;
   const n = t.entetes.length;
-  const rows = objs.map(function (o) {
-    return t.entetes.map(function (h) { return o[h] !== undefined && o[h] !== null ? o[h] : ''; });
+  const liens = [];
+  const rows = objs.map(function (o, k) {
+    return t.entetes.map(function (h, j) {
+      const v = o[h];
+      if (estLien_(v)) { liens.push([k, j, v]); return v.texte; }
+      return v !== undefined && v !== null ? v : '';
+    });
   });
   const debut = t.feuille.getLastRow() + 1;
   t.feuille.getRange(debut, 1, rows.length, n).setValues(rows);
+  liens.forEach(function (l) { ecrireLien_(t.feuille.getRange(debut + l[0], l[1] + 1), l[2]); });
   rows.forEach(function (r) { t.lignes.push(r); });
 }
 
@@ -909,11 +944,26 @@ function quand_(b) {
   return t > 0 ? new Date(t) : new Date();
 }
 
+/** Adresse Google Maps officielle (ouvre l'application Maps sur téléphone). */
+function urlMaps_(lat, lng) {
+  return 'https://www.google.com/maps/search/?api=1&query=' + lat + '%2C' + lng;
+}
+
+/**
+ * Position GPS sous forme de texte cliquable (lien enrichi, sans formule),
+ * ex. « 5.336400, -4.026700 (±8 m) » -> Google Maps.
+ */
 function lienGps_(g) {
   if (!g || g.lat === undefined || g.lng === undefined) return '';
   const lat = Number(g.lat).toFixed(6), lng = Number(g.lng).toFixed(6);
   const acc = g.acc !== undefined ? ' (±' + Math.round(Number(g.acc)) + ' m)' : '';
-  return '=HYPERLINK("https://maps.google.com/?q=' + lat + ',' + lng + '","' + lat + ',' + lng + acc + '")';
+  return { lien: true, texte: lat + ', ' + lng + acc, url: urlMaps_(lat, lng) };
+}
+
+function estLien_(v) { return v && typeof v === 'object' && v.lien === true; }
+
+function ecrireLien_(cell, v) {
+  cell.setRichTextValue(SpreadsheetApp.newRichTextValue().setText(v.texte).setLinkUrl(v.url).build());
 }
 
 function lireGps_(v) {
